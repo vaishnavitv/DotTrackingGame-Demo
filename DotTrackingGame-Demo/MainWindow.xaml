@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        Width="500" Height="500"
+        Width="500" Height="500" FontFamily="Segoe UI Light"
         xmlns:local="clr-namespace:DotTrackingGame_Demo" ResizeMode="NoResize"
-        mc:Ignorable="d" Background="Black"
-        Title="Dot Tracking Game" >
+        mc:Ignorable="d" Background="Black" WindowStartupLocation="CenterScreen"
+        Title="Dot Tracking Game">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

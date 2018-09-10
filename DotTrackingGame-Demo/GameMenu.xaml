@@ -20,9 +20,15 @@
             <ColumnDefinition Width="10" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-
-        <Button Content="Play" Grid.Row="2" Grid.Column="1"  Width="100" Height="50" Background="Aqua" Click="OnPlay_Click" />
-        <Button Content="Replay" Grid.Row="2" Grid.Column="3" Width="100" Height="Auto" Background="Aqua" Click="OnReplay_Click"/>
+        <TextBox x:Name="SummaryDisplay" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="4"
+                 Width="400" Height="80"
+                 Background="Transparent" Foreground="White" BorderThickness="0"
+                 IsReadOnly="True" Text="Dot Tracking Game"
+                 TextAlignment="Center" FontSize="50" />
+        <Button x:Name="PlayButton" Content="Play" Grid.Row="2" Grid.Column="1"  Width="100" Height="50" Background="White" Click="OnPlay_Click" />
+        <Button x:Name="ReplayButton" Content="Replay" Grid.Row="2" Grid.Column="3" 
+                Width="100" Height="Auto" ToolTipService.ShowOnDisabled="True" ToolTip="Click Replay after Gameplay ends"
+                Background="White" Click="OnReplay_Click"/>
 
     </Grid>
 </UserControl>

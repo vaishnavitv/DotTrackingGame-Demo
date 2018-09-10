@@ -1,4 +1,7 @@
-﻿using System;
+﻿using log4net;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,95 +14,163 @@ namespace DotTrackingGame_Demo
     /// </summary>
     public partial class Game : UserControl
     {
-        //Fine grained timer
-        private DispatcherTimer GameTrackTimer;
-        private DispatcherTimer CountDownTimer;
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        private int timerForCountDown = 15;
-        private int timerForMenu = 8;
-            
-        Random rand = new Random();
         protected MainWindow window;
 
-        double posX = 0, posY = 0;
-        double maxX = 0, maxY = 0;
+        //Fine grained timer
+        private DispatcherTimer GameTrackTimer;
 
-        double intensity = 32;
+        //Coarse grained timer
+        private DispatcherTimer CountDownTimer;
+        private int timerForCountDown = 0;
+        private int timerForMenu = 4;
 
-        public Game(MainWindow window, object replayMe = null)
+        //Game Transaction Log
+        private List<GameTransaction> gameTransactionLog;
+        private IGameTransactionSource inputSource;
+
+        public Game(MainWindow window, object initialState = null)
         {
             InitializeComponent();
-            this.window = window;
 
+            this.window = window;
+            int.TryParse(ConfigurationManager.AppSettings["GameTimerInSeconds"], out timerForCountDown);
+
+            if (initialState != null)
+            {
+                log.Info("Starting Game in Replay Mode ...");
+                StartGameForReplay(initialState);
+            }
+            else
+            {
+                log.Info("Starting Game ...");
+                StartGame();
+            }
+
+        }
+
+        private void StartGame()
+        {
+            double maxX = window.Width - DotMain.Width;
+            double maxY = window.Height - DotMain.Height;
+
+            inputSource = new GameTransactionSource(maxX, maxY, this.GameCanvas);
+            DotReplay.Visibility = Visibility.Collapsed;
+            gameTransactionLog = new List<GameTransaction>();
+
+            InitializeAndStartTimers();
+        }
+
+        private void StartGameForReplay(object initialState)
+        {
+            List<GameTransaction> currentTransactionLog = (List<GameTransaction>)initialState;
+            inputSource = new ReplayTransactionSource(currentTransactionLog);
+            CountdownDisplay.Visibility = Visibility.Collapsed;
+            gameTransactionLog = new List<GameTransaction>();
+
+            InitializeAndStartTimers();
+        }
+
+        private void InitializeAndStartTimers()
+        {
             CountDownTimer = new DispatcherTimer();
             CountDownTimer.Interval = TimeSpan.FromSeconds(1);
-            CountDownTimer.Tick += CountDownTimer_Tick;
+            CountDownTimer.Tick += CountDownTimerTick;
 
             GameTrackTimer = new DispatcherTimer();
             GameTrackTimer.Interval = TimeSpan.FromMilliseconds(8);
-            GameTrackTimer.Tick += GameTrackTimer_Tick;
+            GameTrackTimer.Tick += GameTrackTimerTick;
 
             CountDownTimer.Start();
             GameTrackTimer.Start();
         }
 
-        private void GameTrackTimer_Tick(object sender, EventArgs e)
+        private void GameTrackTimerTick(object sender, EventArgs e)
         {
-            //Movement in one interval
-            //Remove the previous ellipse from the paint canvas.
+            GameTransaction gameTransactionNow = null;
 
-            if (timerForCountDown < 0)
+            //Stop Game Timer.
+            if (timerForCountDown <= 0)
             {
                 GameTrackTimer.Stop();
-                return;
+            } else
+            {
+                //Process Input.
+                gameTransactionNow = inputSource.GetInput();
+                if (gameTransactionNow != null)
+                    gameTransactionLog.Add(gameTransactionNow);
             }
 
-            double speedX = (2 * intensity * rand.NextDouble()) - intensity;
-            double speedY = (2 * intensity * rand.NextDouble()) - intensity;
-            double maxX = window.Width - DotMain.Width;
-            double maxY = window.Height - DotMain.Height;
-
-            posX = Clamp(posX + speedX, 0, maxX);
-            posY = Clamp(posY + speedY, 0, maxY); //Don't get it too close to the bottom.
-
-            Canvas.SetLeft(DotMain, posX);
-            Canvas.SetTop(DotMain, posY);
-
+            //Display Objects.
+            GameDisplay(gameTransactionNow);
         }
 
-        private void CountDownTimer_Tick(object sender, EventArgs e)
+        private void CountDownTimerTick(object sender, EventArgs e)
         {
-            if (timerForCountDown > 0)
+            if ((timerForCountDown + timerForMenu) == 0)
             {
-                if (timerForCountDown <= 10)
-                {
-                    CountdownDisplay.Foreground = (timerForCountDown % 2 == 0) ? Brushes.Red : Brushes.White;
-                } else {
-                    CountdownDisplay.Foreground = Brushes.Green;
-                }
-                var minutes = timerForCountDown / 60;
-                var seconds = timerForCountDown % 60;
-                CountdownDisplay.Text = string.Format("{0}:{1}", minutes.ToString("D2"), seconds.ToString("D2"));
-            }
-            else if(timerForCountDown == 0)
-            {
-                CountdownDisplay.Text = "Time's Up!";
-            }
-            else if ( (timerForCountDown + timerForMenu) == 0) {
                 CountDownTimer.Stop();
+                window.SetState(gameTransactionLog);
                 this.window.SetPanelContent(new GameMenu(window));
             }
+
             timerForCountDown--;
         }
 
-        private double Clamp(double valueToClamp,double minValue, double maxValue)
+        private void DisplaySummary()
         {
-            if (valueToClamp < minValue)
-                return minValue;
-            if (valueToClamp > maxValue)
-                return maxValue;
-
-            return valueToClamp;
+            if(String.IsNullOrEmpty(SummaryDisplay.Text))
+            {
+                double totalDistance = 0;
+                foreach (GameTransaction transaction in gameTransactionLog)
+                    totalDistance += Point.Subtract(transaction.GamePoint, transaction.MousePoint).Length;
+                double totalPoints = gameTransactionLog.Count;
+                double averageDistance = (totalPoints > 0) ? (totalDistance / totalPoints) : totalDistance;
+                SummaryDisplay.Text = $"Distance: {(int)averageDistance} px";
+            }
         }
+
+        private void DisplayCountDown()
+        {
+            if(timerForCountDown == 0)
+            {
+                CountdownDisplay.Text = "Time's Up!";
+            }
+            else
+            {
+                CountdownDisplay.Foreground = Brushes.LimeGreen;
+                if (timerForCountDown <= 10)
+                    CountdownDisplay.Foreground = (timerForCountDown % 2 == 0) ? Brushes.Red : Brushes.White;
+                int minutes = timerForCountDown / 60, seconds = timerForCountDown % 60;
+                CountdownDisplay.Text = string.Format("{0}:{1}", minutes.ToString("D2"), seconds.ToString("D2"));
+            }
+        }
+
+        private void DisplayTimer()
+        {
+            if (timerForCountDown < 0)
+                return;
+
+            DisplayCountDown();
+            if (timerForCountDown == 0)
+                DisplaySummary();
+
+        }
+
+        private void GameDisplay(GameTransaction gameTransactionNow)
+        {
+            if(gameTransactionNow != null)
+            {
+                Canvas.SetLeft(DotMain, gameTransactionNow.GamePoint.X);
+                Canvas.SetTop(DotMain, gameTransactionNow.GamePoint.Y);
+
+                Canvas.SetLeft(DotReplay, gameTransactionNow.MousePoint.X);
+                Canvas.SetTop(DotReplay, gameTransactionNow.MousePoint.Y);
+            }
+
+            DisplayTimer();
+        }
+  
     }
 }
