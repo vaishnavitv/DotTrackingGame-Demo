@@ -23,8 +23,11 @@ namespace DotTrackingGame_Demo
 
         //Coarse grained timer
         private DispatcherTimer CountDownTimer;
+        private const int timerForMenu = 4;
+        private const int windowBorderWidth = 15;
+        private const int windowBorderHeight = 37;
+
         private int timerForCountDown = 0;
-        private int timerForMenu = 4;
 
         //Game Transaction Log
         private List<GameTransaction> gameTransactionLog;
@@ -52,8 +55,9 @@ namespace DotTrackingGame_Demo
 
         private void StartGame()
         {
-            double maxX = window.Width - DotMain.Width;
-            double maxY = window.Height - DotMain.Height;
+            //These static dimensions need fixing. We need to defer this for correct Initialization.
+            double maxX = window.Width - DotMain.Width - windowBorderWidth - 1; //Border Fix. Fencepost Fix. 
+            double maxY = window.Height - DotMain.Height - windowBorderHeight - 1; //Border Fix. Fencepost Fix.
 
             inputSource = new GameTransactionSource(maxX, maxY, this.GameCanvas);
             DotReplay.Visibility = Visibility.Collapsed;
